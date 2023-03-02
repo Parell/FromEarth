@@ -6,7 +6,7 @@ using UnityEngine;
 public class PhysicsController : MonoBehaviour
 {
     public static PhysicsController Instance;
-    [SerializeField] private Integrator integrator;
+    [SerializeField] private int integrator;
     [SerializeField] private double universalTime;
     [SerializeField] private int timeScale = 1;
     [SerializeField] private float deltaTime = 0.02f;
