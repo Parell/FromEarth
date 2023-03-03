@@ -3,7 +3,7 @@ using UnityEngine;
 public class OriginFrameController : MonoBehaviour
 {
     public static OriginFrameController Instance;
-    [SerializeField] private int targetThreshold = 5000;
+    [SerializeField] private int positionThreshold = 5000;
     [SerializeField] private Transform localCamera;
     [SerializeField] private Transform scaledCamera;
     private Vector3 localPosition;
@@ -41,7 +41,7 @@ public class OriginFrameController : MonoBehaviour
         // Local space objects
         localPosition = (Vector3)localCamera.position + originPosition;
 
-        if (localCamera.position.magnitude > targetThreshold)
+        if (localCamera.position.magnitude > positionThreshold)
         {
             originPosition += (Vector3)localCamera.position;
 
@@ -51,7 +51,7 @@ public class OriginFrameController : MonoBehaviour
         // Scaled space objects
         scaledPosition = (Vector3)scaledCamera.position + scaledOriginPosition;
 
-        if (scaledCamera.position.magnitude > targetThreshold)
+        if (scaledCamera.position.magnitude > positionThreshold)
         {
             scaledOriginPosition += (Vector3)scaledCamera.position;
         }

@@ -1,5 +1,5 @@
 TODO:
-	- Add a Physics system with: add, create, and remove functions, an Integrator with low error ie. RK4 for runtime, and RKF45 for ploting trajectories, needed its own fixed update loop cause unity only allows step sizes of 1e-4, and finally needs a gpu based function for faster preformance in drawing orbits.
+	- Add a Physics system with: add, create, and remove functions, an Integrator with low error ie. RK4 for runtime and ploting trajectories, and finally needs a gpu based function for faster preformance in drawing orbits.
 
 	- Added origin frame controller or (floating origin system), capability to set refrence frame of cameras, particals, lines, trails and offset every body after position threshold met, also has a velocity reference frame which keeps main selected body within 2000 m/s. 
 

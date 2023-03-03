@@ -6,43 +6,42 @@ using UnityEngine;
 public class PhysicsController : MonoBehaviour
 {
     public static PhysicsController Instance;
-    [SerializeField] private int integrator;
-    [SerializeField] private double universalTime;
-    [SerializeField] private int timeScale = 1;
-    [SerializeField] private float deltaTime = 0.02f;
+    [SerializeField] private double currentTime;
+    [SerializeField] private int timeScale;
+    [SerializeField] private float deltaTime;
     [Header("Plots")]
     [SerializeField] private float plotTime = 100;
-    [SerializeField] private float stepSize = 0.1f;
+    [SerializeField] private float stepSize = 0.01f;
     [SerializeField] private int steps;
+    public Body referenceFrame;
+    //public ReferanceFrameController endlessController;
     [SerializeField] private float plotInterval = 1;
     private float plotUpdateTimer;
-    [SerializeField] private List<Body> bodies;
+    private List<Body> bodies;
     private BodyData[] bodyData;
     private BodyData[] virtualBodyData;
-    List<Maneuver> maneuvers;
 
     private void Awake()
     {
         Instance = this;
 
         Time.fixedDeltaTime = deltaTime;
-        Time.maximumDeltaTime = deltaTime;
 
         FindBodies();
         UpdateIndexes();
     }
 
-    private void FixedUpdate() //Dosen't work make your own
+    private void FixedUpdate()
     {
         for (int i = 0; i < timeScale; i++)
         {
-            universalTime += Time.deltaTime;
+            currentTime += Time.deltaTime;
 
             for (int j = 0; j < bodies.Count; j++)
             {
                 bodyData[j] = bodies[j].bodyData;
 
-                (Vector3, Vector3) data = Integrate(j, bodyData, deltaTime, (int)integrator);
+                var data = Integrate(j, bodyData, Time.deltaTime);
 
                 bodies[j].bodyData.position += data.Item1;
                 bodies[j].bodyData.velocity += data.Item2;
@@ -76,58 +75,77 @@ public class PhysicsController : MonoBehaviour
         //Initalize
         Vector3[][] plotPoints = new Vector3[virtualBodyData.Length][];
 
+        var referenceFrameIndex = 0;
+        var referenceBodyInitialPosition = Vector3d.zero;
+
         for (int i = 0; i < virtualBodyData.Length; i++)
         {
             virtualBodyData[i] = new BodyData(i, bodies[i].bodyData.mass, bodies[i].bodyData.position, bodies[i].bodyData.velocity);
             plotPoints[i] = new Vector3[steps];
 
-            var mover = bodies[i].GetComponent<Mover>();
-            if (mover)
+            if (referenceFrame != null && bodies[i] == referenceFrame)
             {
-                maneuvers = new List<Maneuver>();
-
-                mover.maneuvers.ForEach((item) =>
-                {
-                    maneuvers.Add(new Maneuver(item));
-                });
+                referenceFrameIndex = i;
+                referenceBodyInitialPosition = virtualBodyData[i].position;
             }
+
+            //var mover = bodies[i].GetComponent<Mover>();
+            //if (mover)
+            //{
+            //    maneuvers = new List<Maneuver>();
+
+            //    mover.maneuvers.ForEach((item) =>
+            //    {
+            //        maneuvers.Add(new Maneuver(item));
+            //    });
+            //}
         }
 
         //Update
         for (int step = 0; step < steps; step++)
         {
+            var referenceBodyPosition = (referenceFrame != null) ? virtualBodyData[referenceFrameIndex].position : Vector3d.zero;
+
             for (int i = 0; i < virtualBodyData.Length; i++)
             {
                 // Only needs to happen once
 
-                var mover = bodies[i].GetComponent<Mover>();
+                //var mover = bodies[i].GetComponent<Mover>();
 
-                if (mover)
-                {
-                    for (int j = 0; j < maneuvers.Count; j++)
-                    {
-                        if ((step * stepSize) > maneuvers[j].startTime)
-                        {
-                            if (maneuvers[j].duration > 0)
-                            {
-                                virtualBodyData[i].AddConstantAcceleration(maneuvers[j].direction, maneuvers[j].acceleration, stepSize);
+                //if (mover)
+                //{
+                //    for (int j = 0; j < maneuvers.Count; j++)
+                //    {
+                //        if ((step * stepSize) > maneuvers[j].startTime)
+                //        {
+                //            if (maneuvers[j].duration > 0)
+                //            {
+                //                virtualBodyData[i].AddConstantAcceleration(maneuvers[j].direction, maneuvers[j].acceleration, stepSize);
 
-                                maneuvers[j].duration -= stepSize;
-                            }
-                        }
-                    }
-                }
+                //                maneuvers[j].duration -= stepSize;
+                //            }
+                //        }
+                //    }
+                //}
 
-                (Vector3, Vector3) data = Integrate(i, virtualBodyData, stepSize, (int)integrator);
+                var data = Integrate(i, virtualBodyData, stepSize);
 
                 virtualBodyData[i].position += data.Item1;
                 virtualBodyData[i].velocity += data.Item2;
 
-                Vector3 nextPosition = virtualBodyData[i].position;
+                var nextPosition = virtualBodyData[i].position;
 
-                //Reference frame offset
+                if (referenceFrame != null)
+                {
+                    var referenceFrameOffset = referenceBodyPosition - referenceBodyInitialPosition;
+                    nextPosition -= referenceFrameOffset;
+                }
+                if (referenceFrame != null && i == referenceFrameIndex)
+                {
+                    nextPosition = referenceBodyInitialPosition;
+                }
 
-                plotPoints[i][step] = nextPosition;
+                plotPoints[i][step] = (Vector3)nextPosition;
             }
         }
 
@@ -153,89 +171,53 @@ public class PhysicsController : MonoBehaviour
         }
     }
 
-    private (Vector3, Vector3) Integrate(int index, BodyData[] bodyData, float stepSize, int integrator)
+    private (Vector3d, Vector3d) Integrate(int index, BodyData[] bodyData, float stepSize)
     {
-        Vector3 Gravity(Vector3 position)
+        Vector3d Gravity(Vector3d position)
         {
-            Vector3 acceleration = Vector3.zero;
+            var acceleration = Vector3d.zero;
 
             for (int i = 0; i < bodyData.Length; i++)
             {
                 if (i == index) { continue; }
 
-                Vector3 r = bodyData[i].position - position;
+                var r = bodyData[i].position - position;
 
-                acceleration += r * (Constant.G * bodyData[i].mass) / Mathf.Pow(r.magnitude, 3);
+                acceleration += r * (Constants.G * bodyData[i].mass) / Mathd.Pow(r.magnitude, 3);
             }
 
             return acceleration;
         }
 
-        Vector3 Velocity(Vector3 position, float stepSize)
+        Vector3d Velocity(Vector3d position, float stepSize)
         {
             return bodyData[index].velocity + Gravity(position) * stepSize;
         }
 
-        Vector3 Acceleration(Vector3 velocity, float stepSize)
+        Vector3d Acceleration(Vector3d velocity, float stepSize)
         {
             return Gravity(bodyData[index].position) + Gravity(bodyData[index].position + velocity * stepSize) * stepSize;
         }
 
-        switch (integrator)
+        Vector3d k1, k2, k3, k4, position, velocity;
         {
-            case 0:
-                {
-                    Vector3 position, velocity;
-                    {
-                        velocity = stepSize * Acceleration(bodyData[index].velocity, 0);
-                        position = stepSize * Velocity(bodyData[index].position, 0);
+            k1 = Acceleration(bodyData[index].velocity, 0);
+            k2 = Acceleration(bodyData[index].velocity + stepSize * 0.5f * k1, stepSize * 0.5f);
+            k3 = Acceleration(bodyData[index].velocity + stepSize * 0.5f * k2, stepSize * 0.5f);
+            k4 = Acceleration(bodyData[index].velocity + stepSize * -k3, stepSize);
 
-                        return (position, velocity);
-                    }
-                }
-            case 1:
-                {
-                    Vector3 k1, k2, position, velocity;
-                    {
-
-                        k1 = Acceleration(bodyData[index].velocity, 0);
-                        k2 = Acceleration(bodyData[index].velocity + stepSize * 0.5f * k1, stepSize * 0.5f);
-
-                        velocity = stepSize * k2;
-                    }
-                    {
-                        k1 = Velocity(bodyData[index].position, 0);
-                        k2 = Velocity(bodyData[index].position + stepSize * 0.5f * k1, stepSize * 0.5f);
-
-                        position = stepSize * k2;
-
-                        return (position, velocity);
-                    }
-                }
-            case 2:
-                {
-                    Vector3 k1, k2, k3, k4, position, velocity;
-                    {
-                        k1 = Acceleration(bodyData[index].velocity, 0);
-                        k2 = Acceleration(bodyData[index].velocity + stepSize * 0.5f * k1, stepSize * 0.5f);
-                        k3 = Acceleration(bodyData[index].velocity + stepSize * 0.5f * k2, stepSize * 0.5f);
-                        k4 = Acceleration(bodyData[index].velocity + stepSize * -k3, stepSize);
-
-                        velocity = stepSize / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
-                    }
-                    {
-                        k1 = Velocity(bodyData[index].position, 0);
-                        k2 = Velocity(bodyData[index].position + stepSize * 0.5f * k1, stepSize * 0.5f);
-                        k3 = Velocity(bodyData[index].position + stepSize * 0.5f * k2, stepSize * 0.5f);
-                        k4 = Velocity(bodyData[index].position + stepSize * -k3, stepSize);
-
-                        position = stepSize / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
-
-                        return (position, velocity);
-                    }
-                }
+            velocity = stepSize / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
         }
-        return default;
+        {
+            k1 = Velocity(bodyData[index].position, 0);
+            k2 = Velocity(bodyData[index].position + stepSize * 0.5f * k1, stepSize * 0.5f);
+            k3 = Velocity(bodyData[index].position + stepSize * 0.5f * k2, stepSize * 0.5f);
+            k4 = Velocity(bodyData[index].position + stepSize * -k3, stepSize);
+
+            position = stepSize / 6 * (k1 + 2 * k2 + 2 * k3 + k4);
+
+            return (position, velocity);
+        }
     }
 
     public void AddBody(Body body)
@@ -269,7 +251,7 @@ public class PhysicsController : MonoBehaviour
         UpdateIndexes();
     }
 
-    public void CreateBody(GameObject newObject, float mass, Vector3 position, Vector3 velocity)
+    public void CreateBody(GameObject newObject, float mass, Vector3d position, Vector3d velocity)
     {
         var body = Instantiate(newObject).AddComponent<Body>();
         body.bodyData.mass = mass;
@@ -297,9 +279,9 @@ public class PhysicsController : MonoBehaviour
         }
     }
 
-    public static double UniversalTime
+    public static double CurrentTime
     {
-        get { return Instance.universalTime; }
+        get { return Instance.currentTime; }
     }
 
     public static float DeltaTime
